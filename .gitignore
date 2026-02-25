@@ -1,0 +1,17 @@
+# Build artifacts
+*.o
+*.so
+
+# Binaries
+servidor_mq
+app_cliente_local
+app_cliente_mq
+app_cliente2_local
+app_cliente2_mq
+app_cliente3_local
+app_cliente3_mq
+app_cliente4_mq
+
+# Logs/temp
+*.log
+/tmp/*
