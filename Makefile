@@ -1,3 +1,18 @@
+# ============================================================================
+# Makefile — Ejercicio Evaluable 1: Servicio de tuplas con colas POSIX.
+#
+# Genera:
+#   libclaves.so        Biblioteca local (API directa sobre la tabla hash).
+#   libproxyclaves.so   Biblioteca proxy (envía peticiones al servidor MQ).
+#   servidor_mq         Servidor concurrente con colas POSIX.
+#   app_cliente_*_local  Clientes enlazados con libclaves.so (uso local).
+#   app_cliente_*_mq     Clientes enlazados con libproxyclaves.so (uso MQ).
+#
+# Uso:
+#   make            Compila todo.
+#   make clean      Elimina binarios y objetos.
+# ============================================================================
+
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -O2 -fPIC -pthread -D_POSIX_C_SOURCE=200809L
 LDFLAGS_SHARED = -shared

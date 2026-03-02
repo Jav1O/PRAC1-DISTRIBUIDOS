@@ -1,3 +1,11 @@
+/*
+ * app-cliente-4.c — Cliente de prueba de error de comunicaciones (Bloque C).
+ *
+ * Se ejecuta con el servidor apagado: la llamada a exist() debe devolver -2
+ * indicando un error en el sistema de colas de mensajes.
+ * Solo se enlaza con libproxyclaves.so.
+ */
+
 #include "claves.h"
 
 #include <stdio.h>

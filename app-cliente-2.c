@@ -1,8 +1,17 @@
+/*
+ * app-cliente-2.c — Cliente de pruebas de errores (Bloque B del plan de pruebas).
+ *
+ * Valida que la API devuelve -1 en todos los casos de error documentados:
+ * clave duplicada, clave inexistente, N_value2 fuera de rango, value1 > 255.
+ * Se enlaza tanto con libclaves.so como con libproxyclaves.so.
+ */
+
 #include "claves.h"
 
 #include <stdio.h>
 #include <string.h>
 
+/* Función auxiliar para verificar un caso de prueba. */
 static int check_eq(const char *label, int got, int expected) {
     if (got != expected) {
         printf("[FAIL] %s -> got=%d expected=%d\n", label, got, expected);

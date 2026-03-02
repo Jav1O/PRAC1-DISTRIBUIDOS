@@ -1,3 +1,11 @@
+/*
+ * app-cliente-3.c — Cliente de concurrencia y estrés (Bloques D y E).
+ *
+ * Realiza 'iters' ciclos de set_value/get_value/delete_key con claves
+ * únicas por PID para evitar colisiones entre instancias concurrentes.
+ * Se usa tanto en las pruebas de concurrencia como en el benchmark extra.
+ */
+
 #include "claves.h"
 
 #include <stdio.h>

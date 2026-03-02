@@ -1,3 +1,11 @@
+/*
+ * app-cliente.c — Cliente de prueba funcional básica (Bloque A del plan de pruebas).
+ *
+ * Verifica el ciclo completo de la API: destroy, set_value, exist, get_value,
+ * modify_value, delete_key.  Se enlaza tanto con libclaves.so (local) como
+ * con libproxyclaves.so (distribuido) sin cambios en el código fuente.
+ */
+
 #include "claves.h"
 
 #include <stdio.h>
