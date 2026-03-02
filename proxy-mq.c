@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <mqueue.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -12,6 +13,8 @@
 
 #define LOCAL_MAX_STR_LEN 255
 #define RESPONSE_TIMEOUT_SEC 3
+
+static atomic_uint g_req_seq = 0;
 
 static size_t bounded_len(const char *s, size_t max) {
     size_t i = 0;
@@ -80,9 +83,23 @@ static int call_server(const request_msg_t *req, response_msg_t *res) {
 }
 
 static void fill_base_request(request_msg_t *req, int op) {
+    struct timespec ts;
+    unsigned int seq;
+
     memset(req, 0, sizeof(*req));
     req->op = op;
-    snprintf(req->reply_queue, sizeof(req->reply_queue), "/claves_cli_%ld", (long)getpid());
+
+    seq = atomic_fetch_add_explicit(&g_req_seq, 1U, memory_order_relaxed);
+    if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
+        ts.tv_nsec = 0;
+    }
+
+    (void)snprintf(req->reply_queue,
+                   sizeof(req->reply_queue),
+                   "/clv_%ld_%ld_%u",
+                   (long)getpid(),
+                   (long)ts.tv_nsec,
+                   seq);
 }
 
 int destroy(void) {
