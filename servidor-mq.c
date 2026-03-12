@@ -36,6 +36,26 @@ typedef struct {
     request_msg_t req;
 } worker_arg_t;
 
+/* Convierte un código de operación a texto legible para el log. */
+static const char *op_to_string(int op) {
+    switch (op) {
+        case OP_DESTROY:
+            return "destroy";
+        case OP_SET:
+            return "set_value";
+        case OP_GET:
+            return "get_value";
+        case OP_MODIFY:
+            return "modify_value";
+        case OP_DELETE:
+            return "delete_key";
+        case OP_EXIST:
+            return "exist";
+        default:
+            return "op_desconocida";
+    }
+}
+
 /* Handler de señales: desactiva el bucle principal. */
 static void on_signal(int sig) {
     (void)sig;
@@ -171,6 +191,13 @@ int main(void) {
         if (n != (ssize_t)sizeof(req)) {
             continue;
         }
+
+        /* Log obligatorio: tipo de petición que llega al servidor. */
+        printf("[srv] peticion=%s key=%s reply_q=%s\n",
+               op_to_string(req.op),
+               req.key,
+               req.reply_queue);
+        fflush(stdout);
 
         /* Copiar la petición en memoria dinámica para el hilo. */
         worker_arg_t *w = (worker_arg_t *)malloc(sizeof(worker_arg_t));

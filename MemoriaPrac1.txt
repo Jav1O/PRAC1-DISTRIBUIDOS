@@ -1,0 +1,175 @@
+﻿SISTEMAS DISTRIBUIDOS
+Prac1
+
+
+  
+
+
+
+Javier Olozaga López
+Jose Luis Palacios Medina
+
+
+
+
+
+
+
+
+
+
+
+
+Índice
+1. Objetivo de la práctica
+1.1. Servicio de tuplas <key, value1, value2, value3>
+1.2. Versiones implementadas: local y distribuida con colas POSIX
+2. API del servicio y criterios de retorno
+2.1. Funciones implementadas (destroy, set_value, get_value, modify_value, delete_key, exist)
+2.2. Valores de retorno: 0, -1 y -2 (comunicación) y validaciones locales
+3. Diseño e implementación
+3.1. Versión no distribuida (libclaves.so)
+* Estructura de datos usada
+
+* Atomicidad (mutex)
+3.2. Versión distribuida (libproxyclaves.so + servidor_mq)
+   * Arquitectura (cliente → proxy → servidor → libclaves)
+
+   * Protocolo de mensajes (request/response, cola de respuesta)
+
+   * Concurrencia del servidor
+3.3. Protocolo cliente-servidor (diagrama/pseudocódigo)
+3.4. Log de peticiones en servidor
+4. Compilación y ejecución
+4.1. Compilación (Makefile: targets y comandos)
+4.2. Ejecución local y distribuida (orden y notas tipo LD_LIBRARY_PATH)
+5. Batería de pruebas
+5.1. Pruebas funcionales locales
+5.2. Pruebas funcionales distribuidas
+5.3. Prueba de error de comunicaciones (-2 con servidor apagado)
+5.4. Pruebas de concurrencia / estrés (incluye benchmark extra si se desea)
+5.5. Trabajo extra
+6. Conclusiones
+6.1. Cumplimiento de requisitos y resultados
+6.2. Mejoras posibles
+
+
+1. Objetivo de la práctica
+Se implementa un servicio en memoria para almacenar tuplas <key, value1, value2, value3>, donde key y value1 son cadenas (≤255), value2 es un vector de float de tamaño N (1≤N≤32) y value3 es una estructura Paquete {x,y,z}. Se entregan dos versiones:
+      1. Local (no distribuida): el cliente enlaza con libclaves.so.
+      2. Distribuida (colas POSIX): el cliente enlaza con libproxyclaves.so (proxy) y la operación se atiende en servidor_mq, que ejecuta la lógica real mediante libclaves.so.
+2. API y criterios de retorno
+La API (claves.h) incluye: destroy, set_value, get_value, modify_value, delete_key, exist.
+Nota: exist(key) devuelve 1 si la clave existe, 0 si no existe, y -1 si hay error de parámetros. En modo distribuido, si el fallo es de comunicación, se devuelve -2.
+Criterios:
+      * 0: operación correcta.
+      * -1: error del servicio (clave no existe al consultar/modificar/borrar, clave duplicada al insertar, parámetros inválidos, etc..).
+      * -2 (solo en distribuida): error de comunicación (servidor apagado o fallo usando colas).
+Validación local adicional en distribuida, si value1 supera 255 caracteres o N supera 32, el proxy devuelve -1 sin contactar al servidor.
+3. Diseño e implementación
+3.1. Versión local (libclaves.so)
+Usamos una tabla hash con encadenamiento (listas enlazadas por cubeta) para almacenar un número no acotado de tuplas (memoria dinámica por inserción). Cada entrada guarda key, value1, N, value2[32], value3 y puntero next.
+Para garantizar atomicidad, todas las operaciones de la API se protegen con un mutex global, cada función bloquea el mutex, realiza la operación completa y lo libera, evitando estados intermedios ante concurrencia.
+3.2. Versión distribuida (libproxyclaves.so + servidor_mq)
+Arquitectura: el cliente mantiene la misma API y no conoce colas. El proxy transforma cada llamada en un mensaje request y espera un response. El servidor recibe peticiones, llama a libclaves.so y responde.
+Protocolo: mensajes request/response con la operación y sus datos (key, value1, N, value2, value3), y un nombre de cola de respuesta (reply) que el proxy crea de forma temporal.
+Concurrencia: el servidor atiende peticiones de manera concurrente mediante threads, permitiendo múltiples clientes simultáneos.
+Gestión de errores de comunicación (-2). El proxy distingue claramente los errores del servicio de los errores de comunicación. Se devuelve -2 cuando falla la apertura de la cola del servidor, el envío/recepción del mensaje o cuando no se obtiene respuesta (ej. servidor apagado). Si el servidor responde correctamente pero indica fallo de la operación (clave inexistente, duplicada, etc.), se devuelve -1.
+3.3. Protocolo cliente-servidor (diagrama/pseudocódigo)
+Figura (flujo lógico):
+Cliente API -> Proxy (validación local) -> Cola servidor (/claves_srv)
+		-> Servidor (hilo trabajador) -> libclaves.so
+		-> Cola de respuesta temporal del cliente -> Proxy -> Cliente API
+
+Pseudocódigo resumido:
+1) Proxy recibe llamada API(op, datos)
+2) Si parámetros inválidos: devolver -1
+3) Crear reply_queue temporal única
+4) Enviar request {op, datos, reply_queue} a /claves_srv
+5) Esperar response con timeout
+6) Si fallo de cola/timeout: devolver -2
+7) Si response OK: devolver status y datos (en get_value)
+8) Eliminar reply_queue temporal
+
+En el servidor:
+1) Recibir request de /claves_srv
+2) Registrar en log el tipo de petición recibida
+3) Lanzar hilo trabajador (concurrencia)
+4) Ejecutar operación en libclaves.so (con mutex)
+5) Enviar response a reply_queue del cliente
+
+3.4. Log de peticiones en servidor
+El servidor imprime por consola cada petición recibida a modo de log, indicando al menos:
+	* tipo de operación (destroy, set_value, get_value, modify_value, delete_key, exist)
+	* clave (cuando aplica)
+	* cola de respuesta del cliente
+
+Esto permite trazar el protocolo en tiempo real durante las pruebas.
+4. Compilación y ejecución
+La compilación se realiza con el Makefile:
+      * make clean && make
+Generamos las bibliotecas libclaves.so y libproxyclaves.so, el servidor servidor_mq y los ejecutables de prueba. Para ejecutar las pruebas en Guernika usamos los scripts:
+      * ./run_tests.sh (pruebas principales)
+      * ./run_extra_tests.sh (opcional: estrés/benchmark)
+      * Los ejecutables se generan con rpath, por lo que encuentran las bibliotecas en el propio directorio del proyecto.
+Ejecución manual (sin scripts). En modo distribuido, primero se lanza el servidor (./servidor_mq) en una terminal y en otra terminal se ejecutan los clientes enlazados con el proxy. En modo local, se ejecuta el cliente enlazado directamente con libclaves.so. Los scripts automatizan este flujo para reproducibilidad.
+Nota para Guernika: conviene conectarse por IP fija (no por nombre DNS) y usar la misma IP en todas las terminales para evitar caer en nodos distintos, ya que las colas POSIX son locales a cada máquina.
+5. Batería de pruebas
+La batería comprueba funcionalidad, manejo de errores y comportamiento concurrente.
+Pruebas funcionales (local): inserción, consulta y verificación de valores, modificación y verificación posterior, borrado y comprobación con exist, y destroy para limpiar el servicio.
+Casos de error: clave duplicada en set_value, operaciones sobre clave inexistente (get/modify/delete), y validaciones de parámetros (N fuera de rango, value1 demasiado largo).
+Pruebas funcionales (distribuida): se repite el mismo conjunto de pruebas usando proxy+servidor para asegurar que el comportamiento es equivalente al modo local.
+Prueba de comunicaciones (-2): con el servidor apagado, el proxy debe devolver -2, validando el tratamiento de fallos de comunicación.
+
+
+Prueba
+	Modo
+	Operación
+	Entrada
+	Salida esperada
+	Inserción válida
+	Local/Dist
+	set_value
+	key nueva, N válido
+	0
+	Inserción duplicada
+	Local/Dist
+	set_value
+	key existente
+	-1
+	Consulta inexistente
+	Local/Dist
+	get_value
+	key no existe
+	-1
+	Modificación inexistente
+	Local/Dist
+	modify_value
+	key no existe
+	-1
+	Borrado inexistente
+	Local/Dist
+	delete_key
+	key no existe
+	-1
+	Validación local (proxy)
+	Dist
+	set_value
+	value1>255 o N>32
+	-1
+	Comunicación
+	Dist
+	exist (o cualquiera)
+	servidor apagado
+	-2
+	Concurrencia
+	Dist
+	múltiples ops
+	4–8 clientes
+	sin fallos/OK
+	
+5.5. Trabajo extra
+Hemos ejecutado run_extra_tests.sh, que lanza un benchmark con 1/2/4/8 clientes (300 iteraciones por cliente) y estima el rendimiento (ops/s). Los resultados pueden variar al ser Guernika un entorno compartido.
+Resultados (aprox.): 1 cliente 4.4k ops/s, 2 clientes 14.9k ops/s, 4 clientes 36.9k ops/s, 8 clientes 18.5k ops/s. La caída con 8 clientes se atribuye a contención/overhead y a la carga variable de Guernika.
+6. Conclusiones
+Hemos estado implementando el servicio de tuplas en sus dos modalidades (local y distribuida con colas) respetando la API, los códigos de retorno y la atomicidad mediante sincronización. Las pruebas confirman corrección funcional, manejo de errores del servicio (-1), errores de comunicación (-2) y estabilidad bajo concurrencia. Como posibles mejoras  podriamos optimizar concurrencia (por ejemplo, bloqueo de lectura/escritura o pool de threads) y reutilizar el protocolo en una versión con sockets.
