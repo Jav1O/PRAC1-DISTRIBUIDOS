@@ -1,9 +1,9 @@
-# Plan de pruebas (EE1 Distribuidos)
+# Plan de pruebas (EE2 Distribuidos)
 
 ## Objetivo
-Validar que la API de tuplas cumple el enunciado en modo no distribuido (`libclaves.so`) y distribuido con colas POSIX (`libproxyclaves.so` + `servidor_mq`).
+Validar que la API de tuplas cumple el enunciado en modo no distribuido (`libclaves.so`) y distribuido con sockets TCP (`libproxyclaves.so` + `servidor`).
 
-Además, medir comportamiento bajo carga para documentar un apartado de **Trabajo extra** (punto adicional indicado por el profesor).
+Además, medir comportamiento bajo carga para documentar el comportamiento concurrente del servidor TCP.
 
 ## Entorno
 - Linux
@@ -34,7 +34,7 @@ Cliente: `app-cliente.c`
 Cliente: `app-cliente-2.c`
 
 ### Bloque C: error de comunicaciones (`-2`) en distribuido
-1. Servidor parado
+1. Servidor parado o puerto sin servicio escuchando
 2. Operación API (por ejemplo `exist`) debe devolver `-2`
 
 Cliente: `app-cliente-4.c` enlazado con `libproxyclaves.so`
@@ -53,26 +53,68 @@ Cliente: `app-cliente-4.c` enlazado con `libproxyclaves.so`
 
 Script sugerido: `run_extra_tests.sh`
 
+### Bloque F: resolución y configuración TCP
+1. Ejecutar el cliente con `IP_TUPLAS=127.0.0.1`
+2. Ejecutar el cliente con `IP_TUPLAS=localhost`
+3. Ejecutar el cliente sin `IP_TUPLAS`
+4. Ejecutar el cliente sin `PORT_TUPLAS`
+5. Ejecutar el cliente con `PORT_TUPLAS` inválido (`abc`, `0`, `70000`)
+6. En los casos inválidos la API debe devolver `-2`
+
+Cliente: `app-cliente-4.c` y `app-cliente.c`
+
+### Bloque G: límites máximos válidos
+1. Insertar una clave de longitud 255
+2. Insertar un `value1` de longitud 255
+3. Insertar un `value2` con `N_value2 = 32`
+4. Recuperar la tupla y comprobar que todos los datos se conservan
+
+Cliente: `app-cliente-5.c`
+
+### Bloque H: puerto de servidor y reconexión
+1. Arrancar el servidor en un puerto distinto al usado por el cliente y verificar retorno `-2`
+2. Arrancar el servidor con un puerto inválido y verificar que el proceso falla
+3. Parar y reiniciar el servidor entre operaciones y comprobar recuperación del servicio
+
+Script: `run_tests.sh`
+
+### Bloque I: colisión concurrente sobre la misma clave
+1. Lanzar dos clientes en paralelo intentando insertar exactamente la misma clave
+2. Verificar que una inserción devuelve `0` y la otra `-1`
+
+Cliente: `app-cliente-6.c`
+
+### Bloque J: estabilidad prolongada
+1. Ejecutar varios clientes concurrentes durante un número alto de iteraciones
+2. Verificar ausencia de bloqueos y errores funcionales
+
+Cliente: `app-cliente-3.c`
+
 ## Ejecución manual sugerida
 1. `make clean && make`
 2. Modo local: `./app_cliente_local` y `./app_cliente2_local`
 3. Modo distribuido:
-   - terminal 1: `./servidor_mq`
-   - terminal 2: `./app_cliente_mq` y `./app_cliente2_mq`
-4. Comunicación: con servidor parado ejecutar `./app_cliente4_mq`
-5. Concurrencia: lanzar varias instancias de `./app_cliente3_mq`
-6. Trabajo extra (estrés+rendir): `bash run_extra_tests.sh`
+   - terminal 1: `./servidor 4500`
+   - terminal 2: `env IP_TUPLAS=127.0.0.1 PORT_TUPLAS=4500 ./app_cliente_sock`
+   - terminal 2: `env IP_TUPLAS=127.0.0.1 PORT_TUPLAS=4500 ./app_cliente2_sock`
+   - terminal 2: `env IP_TUPLAS=127.0.0.1 PORT_TUPLAS=4500 ./app_cliente5_sock`
+4. Comunicación: con servidor parado ejecutar `env IP_TUPLAS=127.0.0.1 PORT_TUPLAS=4500 ./app_cliente4_sock`
+5. Configuración: probar también `env IP_TUPLAS=localhost PORT_TUPLAS=4500 ./app_cliente_sock`
+6. Concurrencia: lanzar varias instancias de `env IP_TUPLAS=127.0.0.1 PORT_TUPLAS=4500 ./app_cliente3_sock`
+7. Estrés y rendimiento: `bash run_extra_tests.sh`
 
 ## Criterio de aceptación
 - Todos los casos deben producir los códigos esperados.
-- En distribuido, errores de transporte deben observarse como `-2`.
+- En distribuido, errores de transporte TCP deben observarse como `-2`.
 - No debe haber bloqueos ni corrupción bajo concurrencia.
 
 ## Trazabilidad con el enunciado
 - API no distribuida y distribuida verificadas con los mismos clientes de prueba.
-- Distinción de errores `-1` (servicio) y `-2` (comunicación) validada explícitamente.
+- Distinción de errores `-1` (servicio) y `-2` (comunicación TCP) validada explícitamente.
 - Concurrencia del servidor validada con múltiples clientes simultáneos.
 - Operaciones atómicas validadas indirectamente (sin inconsistencias) en pruebas de concurrencia.
+- Configuración mediante variables de entorno y resolución por IP/nombre validadas explícitamente.
+- Límites máximos válidos del protocolo verificados con una prueba específica.
 
 ## Trabajo extra (texto sugerido para memoria)
-Se ha realizado una batería adicional de pruebas de estrés y rendimiento variando el nivel de concurrencia del sistema. Para cada escenario se midió el tiempo total y se estimó el throughput de operaciones, observando el comportamiento del servicio y la ausencia de fallos funcionales bajo carga. Esta batería se ejecuta con `run_extra_tests.sh` y sus resultados se incorporan en la memoria bajo el apartado **Trabajo extra**.
+Se ha realizado una batería adicional de pruebas de estrés y rendimiento variando el nivel de concurrencia del sistema. Para cada escenario se midió el tiempo total y se estimó el throughput de operaciones, observando el comportamiento del servicio TCP y la ausencia de fallos funcionales bajo carga. Esta batería se ejecuta con `run_extra_tests.sh` y sus resultados se incorporan en la memoria.

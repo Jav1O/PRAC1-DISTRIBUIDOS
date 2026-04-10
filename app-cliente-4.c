@@ -1,8 +1,8 @@
 /*
  * app-cliente-4.c — Cliente de prueba de error de comunicaciones (Bloque C).
  *
- * Se ejecuta con el servidor apagado: la llamada a exist() debe devolver -2
- * indicando un error en el sistema de colas de mensajes.
+ * Se ejecuta con el servidor apagado o con configuración inválida: la llamada
+ * a exist() debe devolver -2 indicando un error de comunicación TCP.
  * Solo se enlaza con libproxyclaves.so.
  */
 

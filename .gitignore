@@ -3,14 +3,18 @@
 *.so
 
 # Binaries
-servidor_mq
+servidor
+servidor_sock
 app_cliente_local
-app_cliente_mq
 app_cliente2_local
-app_cliente2_mq
 app_cliente3_local
-app_cliente3_mq
-app_cliente4_mq
+app_cliente_sock
+app_cliente2_sock
+app_cliente3_sock
+app_cliente4_sock
+app_cliente5_local
+app_cliente5_sock
+app_cliente6_sock
 
 # Logs/temp
 *.log

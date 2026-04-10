@@ -26,7 +26,7 @@ printf "%10s | %12s | %14s\n" "clientes" "tiempo(s)" "ops/s aprox"
 printf "%10s-+-%12s-+-%14s\n" "----------" "------------" "--------------"
 
 for clients in "${CLIENTS_LIST[@]}"; do
-  ./servidor_mq >/tmp/servidor_mq_extra.log 2>&1 &
+  ./servidor 4500 >/tmp/servidor_sock_extra.log 2>&1 &
   SERVER_PID=$!
   sleep 1
 
@@ -34,7 +34,7 @@ for clients in "${CLIENTS_LIST[@]}"; do
   pids=()
 
   for i in $(seq 1 "$clients"); do
-    ./app_cliente3_mq "extra_${clients}_${i}" "$ITERS_PER_CLIENT" &
+    env IP_TUPLAS=127.0.0.1 PORT_TUPLAS=4500 ./app_cliente3_sock "extra_${clients}_${i}" "$ITERS_PER_CLIENT" &
     pids+=("$!")
   done
 
@@ -55,5 +55,23 @@ for clients in "${CLIENTS_LIST[@]}"; do
 
   printf "%10d | %12s | %14s\n" "$clients" "$elapsed_s" "$ops_s"
 done
+
+echo "[extra] Prueba prolongada adicional (4 clientes, 1000 iteraciones)"
+./servidor 4500 >/tmp/servidor_sock_long.log 2>&1 &
+SERVER_PID=$!
+sleep 1
+pids=()
+
+for i in 1 2 3 4; do
+  env IP_TUPLAS=127.0.0.1 PORT_TUPLAS=4500 ./app_cliente3_sock "long_${i}" 1000 &
+  pids+=("$!")
+done
+
+for pid in "${pids[@]}"; do
+  wait "$pid"
+done
+
+cleanup
+SERVER_PID=""
 
 echo "[extra] OK: pruebas de estrés completadas"
